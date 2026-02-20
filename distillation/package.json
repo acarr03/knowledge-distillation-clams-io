@@ -1,0 +1,18 @@
+{
+  "name": "@clams-io/distillation",
+  "version": "0.1.0",
+  "description": "CLAMS-IO interaction logger and distillation pipeline",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "scripts": {
+    "test": "node --test test/classifier.test.js test/complexity.test.js test/cost.test.js",
+    "test:integration": "node --test test/logger.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "pg": "^8.13.0"
+  }
+}
