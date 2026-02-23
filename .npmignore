@@ -1,0 +1,11 @@
+# Only ship the module code when installed via npm/git
+CLAUDE.md
+docs/
+data/
+evaluation/
+fine-tuning/
+scripts/
+test/
+sql/
+.claude/
+.git/
