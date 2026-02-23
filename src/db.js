@@ -8,11 +8,13 @@ let pool = null;
  */
 function getPool() {
   if (!pool) {
+    const isRemote = config.databaseUrl && !config.databaseUrl.includes('localhost') && !config.databaseUrl.includes('127.0.0.1');
     pool = new pg.Pool({
       connectionString: config.databaseUrl,
       max: config.pool.max,
       idleTimeoutMillis: config.pool.idleTimeoutMillis,
       connectionTimeoutMillis: config.pool.connectionTimeoutMillis,
+      ...(isRemote ? { ssl: { rejectUnauthorized: false } } : {}),
     });
 
     // Log pool errors but never throw/crash the process
