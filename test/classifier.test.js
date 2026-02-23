@@ -1,7 +1,7 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { classifyQuery, CATEGORIES } from '../src/classifier.js';
-import { sampleQueries } from './fixtures/anthropic-responses.js';
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { classifyQuery, CATEGORIES } = require('../src/classifier.js');
+const { sampleQueries } = require('./fixtures/anthropic-responses.js');
 
 describe('classifyQuery', () => {
   // Verify every category from fixtures maps correctly

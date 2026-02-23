@@ -39,7 +39,7 @@ const DEPTH_PATTERNS = [
   /\broot\s+cause\b/i,
 ];
 
-export function scoreComplexity(query, ragContext) {
+function scoreComplexity(query, ragContext) {
   if (!query || typeof query !== 'string') return 1;
 
   let score = 1;
@@ -74,3 +74,5 @@ export function scoreComplexity(query, ragContext) {
   // Clamp to 1–5
   return Math.max(1, Math.min(5, Math.round(score)));
 }
+
+module.exports = { scoreComplexity };

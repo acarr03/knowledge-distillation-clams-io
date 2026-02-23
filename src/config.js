@@ -2,8 +2,8 @@
 const SONNET_INPUT_PER_TOKEN = 3 / 1_000_000;   // $3 per 1M input tokens
 const SONNET_OUTPUT_PER_TOKEN = 15 / 1_000_000;  // $15 per 1M output tokens
 
-export const config = {
-  databaseUrl: process.env.DATABASE_URL || 'postgresql://localhost:5432/clams_distillation',
+const config = {
+  databaseUrl: process.env.DISTILLATION_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://localhost:5432/clams_distillation',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
 
   // pg Pool settings
@@ -19,3 +19,5 @@ export const config = {
     outputPerToken: parseFloat(process.env.SONNET_OUTPUT_PER_TOKEN || String(SONNET_OUTPUT_PER_TOKEN)),
   },
 };
+
+module.exports = { config };

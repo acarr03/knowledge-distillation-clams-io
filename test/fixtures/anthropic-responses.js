@@ -2,7 +2,7 @@
  * Mock Anthropic API responses for testing.
  */
 
-export const basicResponse = {
+const basicResponse = {
   id: 'msg_01XFDUDYJgAACzvnptvVoYEL',
   type: 'message',
   role: 'assistant',
@@ -21,7 +21,7 @@ export const basicResponse = {
   },
 };
 
-export const multiBlockResponse = {
+const multiBlockResponse = {
   id: 'msg_02ABCDEFGhijklmnop',
   type: 'message',
   role: 'assistant',
@@ -38,7 +38,7 @@ export const multiBlockResponse = {
   },
 };
 
-export const sampleQueries = {
+const sampleQueries = {
   unit_conversion: 'Convert 14.5 MPa to psi',
   calculation: 'Calculate the PV limit for this bearing application',
   compliance_check: 'Is Vespel SP-1 RoHS compliant?',
@@ -48,3 +48,5 @@ export const sampleQueries = {
   material_lookup: "What's the tensile strength of Vespel SP-1?",
   general_engineering: 'Explain creep behavior in thermoplastic polymers',
 };
+
+module.exports = { basicResponse, multiBlockResponse, sampleQueries };

@@ -1,7 +1,7 @@
-import { describe, it, after } from 'node:test';
-import assert from 'node:assert/strict';
-import { logInteraction } from '../src/logger.js';
-import { query, closePool } from '../src/db.js';
+const { describe, it, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { logInteraction } = require('../src/logger.js');
+const { query, closePool } = require('../src/db.js');
 
 const TEST_PREFIX = '[TEST]';
 

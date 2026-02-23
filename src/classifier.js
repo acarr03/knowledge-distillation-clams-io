@@ -1,7 +1,7 @@
 /**
  * Valid query categories matching the CHECK constraint on interactions.query_category.
  */
-export const CATEGORIES = [
+const CATEGORIES = [
   'unit_conversion',
   'calculation',
   'compliance_check',
@@ -95,7 +95,7 @@ const rules = [
  * Classify a user query into one of 8 categories.
  * Returns the first matching category, or 'general_engineering' as fallback.
  */
-export function classifyQuery(query) {
+function classifyQuery(query) {
   if (!query || typeof query !== 'string') return 'general_engineering';
 
   for (const rule of rules) {
@@ -104,3 +104,5 @@ export function classifyQuery(query) {
 
   return 'general_engineering';
 }
+
+module.exports = { classifyQuery, CATEGORIES };

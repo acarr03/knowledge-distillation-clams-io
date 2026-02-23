@@ -1,7 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { config } from './config.js';
-import { logInteractionAsync } from './logger.js';
-import { calculateCostFromUsage } from './cost.js';
+const Anthropic = require('@anthropic-ai/sdk');
+const { config } = require('./config.js');
+const { logInteractionAsync } = require('./logger.js');
+const { calculateCostFromUsage } = require('./cost.js');
 
 /**
  * Drop-in Anthropic client wrapper that auto-logs every message creation
@@ -16,7 +16,7 @@ import { calculateCostFromUsage } from './cost.js';
  *     { ragContext, materialContext, complianceContext, conversationId }
  *   );
  */
-export class ClamsAnthropicClient {
+class ClamsAnthropicClient {
   #client;
 
   constructor(options = {}) {
@@ -103,3 +103,5 @@ export class ClamsAnthropicClient {
       .join('\n');
   }
 }
+
+module.exports = { ClamsAnthropicClient };

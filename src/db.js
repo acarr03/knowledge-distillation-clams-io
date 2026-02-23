@@ -1,12 +1,12 @@
-import pg from 'pg';
-import { config } from './config.js';
+const pg = require('pg');
+const { config } = require('./config.js');
 
 let pool = null;
 
 /**
  * Lazy singleton pg.Pool. Created on first call to getPool().
  */
-export function getPool() {
+function getPool() {
   if (!pool) {
     pool = new pg.Pool({
       connectionString: config.databaseUrl,
@@ -26,16 +26,18 @@ export function getPool() {
 /**
  * Execute a parameterized query against the pool.
  */
-export function query(text, params) {
+function query(text, params) {
   return getPool().query(text, params);
 }
 
 /**
  * Drain and close the pool. Safe to call multiple times.
  */
-export async function closePool() {
+async function closePool() {
   if (pool) {
     await pool.end();
     pool = null;
   }
 }
+
+module.exports = { getPool, query, closePool };

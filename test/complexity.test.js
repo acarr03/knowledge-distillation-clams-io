@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { scoreComplexity } from '../src/complexity.js';
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { scoreComplexity } = require('../src/complexity.js');
 
 describe('scoreComplexity', () => {
   it('returns 1 for a simple, short query', () => {

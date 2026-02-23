@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { calculateCost, calculateCostFromUsage } from '../src/cost.js';
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { calculateCost, calculateCostFromUsage } = require('../src/cost.js');
 
 describe('calculateCost', () => {
   it('calculates cost for typical Sonnet query', () => {

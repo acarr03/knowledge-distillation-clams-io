@@ -1,7 +1,7 @@
-import { query } from './db.js';
-import { classifyQuery } from './classifier.js';
-import { scoreComplexity } from './complexity.js';
-import { calculateCost } from './cost.js';
+const { query } = require('./db.js');
+const { classifyQuery } = require('./classifier.js');
+const { scoreComplexity } = require('./complexity.js');
+const { calculateCost } = require('./cost.js');
 
 const INSERT_SQL = `
   INSERT INTO interactions (
@@ -33,7 +33,7 @@ function toText(value) {
  * Returns { id, category, complexity } on success, or null on error.
  * Never throws.
  */
-export async function logInteraction({
+async function logInteraction({
   userQuery,
   ragContext = null,
   materialContext = null,
@@ -83,8 +83,10 @@ export async function logInteraction({
  * Fire-and-forget variant. Starts the insert but does not await it.
  * Errors are logged and swallowed — never blocks or crashes the caller.
  */
-export function logInteractionAsync(params) {
+function logInteractionAsync(params) {
   logInteraction(params).catch(() => {
     // Already logged in logInteraction's catch block
   });
 }
+
+module.exports = { logInteraction, logInteractionAsync };
