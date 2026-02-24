@@ -1,0 +1,45 @@
+<%- include('layout', { body: `
+<div id="stats-page">
+  <h1 class="text-2xl font-bold mb-6">Pipeline Overview</h1>
+
+  <!-- Stat cards -->
+  <div id="stat-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div class="text-gray-500 text-xs uppercase tracking-wide">Total</div>
+      <div id="stat-total" class="text-2xl font-bold mt-1">-</div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div class="text-gray-500 text-xs uppercase tracking-wide">Reviewed</div>
+      <div id="stat-reviewed" class="text-2xl font-bold mt-1 text-blue-400">-</div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div class="text-gray-500 text-xs uppercase tracking-wide">Approved</div>
+      <div id="stat-approved" class="text-2xl font-bold mt-1 text-green-400">-</div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div class="text-gray-500 text-xs uppercase tracking-wide">Unreviewed</div>
+      <div id="stat-unreviewed" class="text-2xl font-bold mt-1 text-yellow-400">-</div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div class="text-gray-500 text-xs uppercase tracking-wide">Avg Complexity</div>
+      <div id="stat-complexity" class="text-2xl font-bold mt-1 text-purple-400">-</div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div class="text-gray-500 text-xs uppercase tracking-wide">Total Cost</div>
+      <div id="stat-cost" class="text-2xl font-bold mt-1 text-orange-400">-</div>
+    </div>
+  </div>
+
+  <!-- Category breakdown -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-gray-900 rounded-lg p-5 border border-gray-800">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">By Category</h2>
+      <div id="category-breakdown" class="space-y-2"></div>
+    </div>
+    <div class="bg-gray-900 rounded-lg p-5 border border-gray-800">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-4">Daily Activity (Last 30 Days)</h2>
+      <div id="daily-chart" class="flex items-end gap-1 h-40"></div>
+    </div>
+  </div>
+</div>
+` }) %>

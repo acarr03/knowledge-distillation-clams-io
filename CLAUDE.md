@@ -18,7 +18,7 @@ Adrian Carrera — Mechanical/Materials Engineer at TriStar Plastics LLC (owned 
 
 - **Runtime**: Node.js v25.6.1
 - **Python**: 3.9.6 (for ML pipeline, fine-tuning, evaluation)
-- **Database**: PostgreSQL 16.12 (Homebrew) — database `clams_distillation` is live with schema
+- **Database**: PostgreSQL on Railway (production) + local PostgreSQL 16.12 (Homebrew) for dev
 - **Local LLM**: Ollama + Qwen3-30B-A3B (Apache 2.0 license, full commercial freedom)
 - **AI API**: Claude Sonnet 4.5 (current production model for CLAMS)
 - **Claude Code**: v2.1.49
@@ -32,13 +32,20 @@ Adrian Carrera — Mechanical/Materials Engineer at TriStar Plastics LLC (owned 
 ├── CLAUDE.md               # Project knowledge file (this file)
 ├── docs/
 │   └── pipeline-implementation.md  # Reference code & architecture for all components
-├── distillation/           # Interaction logger middleware, API interceptor
+├── src/                    # Core module: logger, classifier, cost, config, db
+├── dashboard/              # Curation dashboard (Express + EJS, port 3847)
+│   ├── server.js           # Entry point
+│   ├── routes/api.js       # REST endpoints (stats, interactions, review, export)
+│   ├── routes/pages.js     # Page routes (overview, list, review)
+│   ├── views/              # EJS templates (layout, index, interactions, review)
+│   └── public/app.js       # Client-side JS
 ├── fine-tuning/            # Training scripts, Unsloth configs, QLoRA setup
 ├── evaluation/             # Shadow testing, automated scoring, benchmarks
 ├── data/
 │   ├── raw-logs/           # Raw interaction exports from PostgreSQL
 │   ├── curated/            # Engineer-reviewed and approved examples
 │   └── training-sets/      # JSONL files ready for fine-tuning
+├── test/                   # Unit tests (classifier, complexity, cost, logger)
 └── scripts/                # Utility scripts, export tools, maintenance
 ```
 
@@ -183,14 +190,18 @@ JSONL with chat format for fine-tuning:
 }
 ```
 
+## What's Built (Phase 1)
+
+1. **Interaction logger middleware** — `src/logger.js` intercepts CLAMS chat requests via `logInteractionAsync()`. Installed in the backend's `agent.js` route. Fire-and-forget, never blocks the user.
+2. **Auto-classifier** — `src/classifier.js` tags query_category (8 types) and `src/complexity.js` scores query_complexity (1-5). Both run inline during logging.
+3. **Token/cost tracking** — `materialAgent.js` accumulates `input_tokens` / `output_tokens` across all API calls in the LangGraph workflow and passes them to the logger, which auto-calculates `sonnet_cost`.
+4. **Curation dashboard** — `dashboard/` — Express + EJS app on port 3847. Stats overview, filterable interaction list, detail review page (edit, approve, reject), JSONL training export.
+5. **Training export** — `GET /api/export/training` endpoint exports the `training_ready` view as JSONL in chat format, ready for fine-tuning.
+
 ## What To Build Next
 
-1. **Interaction logger middleware** — Express.js middleware that sits between CLAMS frontend and Sonnet API. Intercepts requests, logs to PostgreSQL, passes response through. This is the first thing to build.
-2. **Auto-classifier** — Automatically tags query_category and query_complexity on each logged interaction.
-3. **Curation dashboard** — Web UI for reviewing, editing, approving/rejecting logged interactions. Filter by category, complexity, review status.
-4. **Training export script** — Python script that queries the `training_ready` view and exports to JSONL format for fine-tuning.
-5. **Shadow testing framework** — Sends queries to both Sonnet and local model, runs automated evaluation, logs comparison scores.
-6. **Smart router** — Decision engine that routes queries to local or Sonnet based on category performance thresholds.
+1. **Shadow testing framework** — Sends queries to both Sonnet and local model, runs automated evaluation, logs comparison scores.
+2. **Smart router** — Decision engine that routes queries to local or Sonnet based on category performance thresholds.
 
 ## Cost Impact Projection
 
@@ -231,6 +242,21 @@ Review Anthropic's Acceptable Use Policy before direct distillation. Three appro
 2. **Synthetic augmentation** — Use Sonnet outputs as inspiration to write variations in your own expert voice.
 3. **Evaluation-only** — Train on your own datasheets/manuals/references. Use Sonnet purely as the evaluator/judge.
 
+## Running the Curation Dashboard
+
+```bash
+# Option 1: Shell alias (already configured in ~/.zshrc)
+clams-dash
+
+# Option 2: macOS app (double-click)
+# "CLAMS Dashboard.app" on Desktop or in /Applications
+
+# Option 3: Manual
+DISTILLATION_DATABASE_URL="<railway-url>" npm run dashboard
+```
+
+Opens at http://localhost:3847. Connects to the Railway Postgres database.
+
 ## Important Notes
 
 - Never store API keys in code. Use environment variables.
@@ -238,3 +264,4 @@ Review Anthropic's Acceptable Use Policy before direct distillation. Three appro
 - PostgreSQL is running as a Homebrew service (`brew services start postgresql@16`).
 - Ollama runs as a background service after first launch.
 - See `docs/pipeline-implementation.md` for reference code for all components.
+- The Railway database URL is stored in the `clams-dash` shell alias and the macOS app. If the Railway DB credentials rotate, update both.

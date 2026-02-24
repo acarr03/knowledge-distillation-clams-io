@@ -7,5 +7,6 @@ fine-tuning/
 scripts/
 test/
 sql/
+dashboard/
 .claude/
 .git/

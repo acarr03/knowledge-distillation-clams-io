@@ -5,10 +5,13 @@
   "main": "index.js",
   "scripts": {
     "test": "node --test test/classifier.test.js test/complexity.test.js test/cost.test.js",
-    "test:integration": "node --test test/logger.test.js"
+    "test:integration": "node --test test/logger.test.js",
+    "dashboard": "node dashboard/server.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "ejs": "^3.1.10",
+    "express": "^4.21.0",
     "pg": "^8.13.0"
   }
 }
