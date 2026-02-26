@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project builds a proprietary AI knowledge distillation pipeline for CLAMS-IO.DEV, a Materials Intelligence Platform for the engineered plastics and composites industry. The goal is to capture interactions with Claude Sonnet, curate them with human engineering expertise, and fine-tune a local open-source model (Qwen3-30B-A3B) to handle the majority of queries independently — reducing API costs, building defensible IP, and creating a competitive moat.
+This project builds a proprietary AI knowledge distillation pipeline for CLAMS-IO.DEV, a Materials Intelligence Platform for the engineered plastics and composites industry. The goal is to capture interactions with Claude Sonnet, curate them with human engineering expertise, and fine-tune a local open-source model (Qwen3.5-35B-A3B) to handle the majority of queries independently — reducing API costs, building defensible IP, and creating a competitive moat.
 
 ## Owner
 
@@ -12,14 +12,14 @@ Adrian Carrera — Mechanical/Materials Engineer at TriStar Plastics LLC (owned 
 
 - **Mac Studio M4 Max** — 16-Core CPU, 40-Core GPU, 64GB Unified Memory, 1TB SSD
 - **Network**: 10Gb Ethernet via Cat 6a to Eero Max 7 (tested at 2.3 Gbps)
-- **Local Model**: Qwen3-30B-A3B running via Ollama (~18-20GB at Q8, 30-40 t/s on M4 Max)
+- **Local Model**: Qwen3.5-35B-A3B running via Ollama (~23GB, ~45 t/s on M4 Max)
 
 ## Tech Stack
 
 - **Runtime**: Node.js v25.6.1
 - **Python**: 3.9.6 (for ML pipeline, fine-tuning, evaluation)
 - **Database**: PostgreSQL on Railway (production) + local PostgreSQL 16.12 (Homebrew) for dev
-- **Local LLM**: Ollama + Qwen3-30B-A3B (Apache 2.0 license, full commercial freedom)
+- **Local LLM**: Ollama + Qwen3.5-35B-A3B (Apache 2.0 license, full commercial freedom)
 - **AI API**: Claude Sonnet 4.5 (current production model for CLAMS)
 - **Claude Code**: v2.1.49
 - **Fine-tuning**: Unsloth (optimized for Apple Silicon), QLoRA
@@ -147,7 +147,7 @@ Structured interview sessions with industry veteran (30+ years experience). Reco
 
 ## Key Technical Decisions
 
-- **Qwen3-30B-A3B chosen over 70B dense models**: MoE architecture (30B total, 3B active) gives better speed (30-40 t/s vs 8-12 t/s), lower memory footprint (18-20GB vs 40GB), more RAG context headroom (44-46GB free), and faster fine-tuning iterations. Quality gap narrows post-fine-tuning on domain-specific data.
+- **Qwen3.5-35B-A3B chosen over 70B dense models**: MoE architecture (35B total, 3B active) gives better speed (~45 t/s vs 8-12 t/s), lower memory footprint (~23GB vs 40GB), more RAG context headroom (~41GB free), multimodal support (text + image), 256K context window, and faster fine-tuning iterations. Quality gap narrows post-fine-tuning on domain-specific data.
 - **Human-in-the-loop curation**: Every training example is reviewed, edited, and approved by an engineer before entering the training set. This makes the dataset legally defensible as "Adrian's curated materials engineering knowledge" rather than raw Sonnet output copies.
 - **Apache 2.0 license**: Full commercial freedom. No revenue caps, no attribution requirements. Critical for equity asset.
 
