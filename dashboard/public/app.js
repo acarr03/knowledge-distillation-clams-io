@@ -53,6 +53,7 @@ function loadInteractions(page) {
   if (val('f-reviewed')) params.set('reviewed', val('f-reviewed'));
   if (val('f-approved')) params.set('approved', val('f-approved'));
   if (val('f-complexity')) params.set('complexity', val('f-complexity'));
+  if (val('f-source')) params.set('source', val('f-source'));
   if (val('f-search')) params.set('search', val('f-search'));
   if (val('f-from')) params.set('from', val('f-from'));
   if (val('f-to')) params.set('to', val('f-to'));
@@ -73,6 +74,7 @@ function loadInteractions(page) {
           <td class="py-2 pr-3 max-w-md truncate">${esc(i.query_preview)}</td>
           <td class="py-2 pr-3"><span class="bg-gray-800 text-gray-400 px-2 py-0.5 rounded text-xs">${i.query_category || '-'}</span></td>
           <td class="py-2 pr-3 text-center">${i.query_complexity ?? '-'}</td>
+          <td class="py-2 pr-3"><span class="${i.source === 'widget' ? 'bg-purple-900/50 text-purple-400' : 'bg-blue-900/50 text-blue-400'} px-2 py-0.5 rounded text-xs">${i.source || 'chat'}</span></td>
           <td class="py-2 pr-3">
             ${i.engineer_approved ? '<span class="text-green-400 text-xs font-medium">Approved</span>' : i.engineer_reviewed ? '<span class="text-red-400 text-xs font-medium">Rejected</span>' : '<span class="text-gray-600 text-xs">Pending</span>'}
           </td>
@@ -130,6 +132,7 @@ function loadReview(id) {
       meta.innerHTML = [
         ['Category', d.query_category || '-'],
         ['Complexity', d.query_complexity ?? '-'],
+        ['Source', d.source || 'chat'],
         ['Model', d.sonnet_model || '-'],
         ['Tokens In', d.sonnet_tokens_in ?? '-'],
         ['Tokens Out', d.sonnet_tokens_out ?? '-'],

@@ -51,6 +51,7 @@ router.get('/interactions', async (req, res) => {
       reviewed,
       approved,
       complexity,
+      source,
       search,
       from,
       to,
@@ -78,6 +79,10 @@ router.get('/interactions', async (req, res) => {
       conditions.push(`query_complexity = $${idx++}`);
       params.push(parseInt(complexity, 10));
     }
+    if (source) {
+      conditions.push(`source = $${idx++}`);
+      params.push(source);
+    }
     if (search) {
       conditions.push(`user_query ILIKE $${idx++}`);
       params.push(`%${search}%`);
@@ -98,7 +103,7 @@ router.get('/interactions', async (req, res) => {
       query(
         `SELECT id, LEFT(user_query, 120) AS query_preview, query_category,
                 query_complexity, engineer_reviewed, engineer_approved,
-                sonnet_cost, created_at
+                sonnet_cost, created_at, source
          FROM interactions ${where}
          ORDER BY id DESC
          LIMIT $${idx++} OFFSET $${idx++}`,
@@ -167,7 +172,15 @@ router.put('/interactions/:id/review', async (req, res) => {
 // GET /api/export/training — Download training_ready as JSONL
 router.get('/export/training', async (req, res) => {
   try {
-    const result = await query('SELECT * FROM training_ready ORDER BY id');
+    const { source } = req.query;
+    let sql = 'SELECT * FROM training_ready';
+    const params = [];
+    if (source) {
+      sql += ' WHERE source = $1';
+      params.push(source);
+    }
+    sql += ' ORDER BY id';
+    const result = await query(sql, params);
     const lines = result.rows.map((row) => {
       const userContent = [row.user_query];
       if (row.rag_context) userContent.push(`\n\nContext:\n${row.rag_context}`);
@@ -188,7 +201,7 @@ router.get('/export/training', async (req, res) => {
           id: row.id,
           category: row.query_category,
           complexity: row.query_complexity,
-          source: 'sonnet_distillation',
+          source: row.source || 'chat',
         },
       });
     });

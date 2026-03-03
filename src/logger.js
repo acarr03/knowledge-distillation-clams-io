@@ -9,8 +9,8 @@ const INSERT_SQL = `
     compliance_context, system_prompt, conversation_id,
     sonnet_response, sonnet_model, sonnet_tokens_in,
     sonnet_tokens_out, sonnet_latency_ms, sonnet_cost,
-    query_category, query_complexity
-  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+    query_category, query_complexity, source
+  ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
   RETURNING id
 `;
 
@@ -46,6 +46,7 @@ async function logInteraction({
   tokensOut = null,
   latencyMs = null,
   cost = null,
+  source = 'chat',
 }) {
   try {
     const category = classifyQuery(userQuery);
@@ -69,6 +70,7 @@ async function logInteraction({
       computedCost,
       category,
       complexity,
+      source,
     ]);
 
     const id = result.rows[0].id;
