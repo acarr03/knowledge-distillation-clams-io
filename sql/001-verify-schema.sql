@@ -43,6 +43,10 @@ CREATE TABLE IF NOT EXISTS interactions (
     format_match             BOOLEAN,
     divergence_notes         TEXT,
 
+    -- Organization
+    org_id                   UUID,
+    org_name                 TEXT,
+
     -- CHECK constraints
     CONSTRAINT interactions_query_category_check CHECK (
         query_category = ANY (ARRAY[
@@ -66,6 +70,7 @@ CREATE INDEX IF NOT EXISTS idx_interactions_approved ON interactions(engineer_ap
 CREATE INDEX IF NOT EXISTS idx_interactions_created ON interactions(created_at);
 CREATE INDEX IF NOT EXISTS idx_interactions_complexity ON interactions(query_complexity);
 CREATE INDEX IF NOT EXISTS idx_interactions_conversation ON interactions(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_interactions_org_id ON interactions(org_id);
 
 -- View: training-ready examples with engineer approval
 CREATE OR REPLACE VIEW training_ready AS
@@ -73,7 +78,8 @@ SELECT
     id, user_query, rag_context, material_context,
     compliance_context, system_prompt,
     COALESCE(engineer_edited_response, sonnet_response) AS response,
-    query_category, query_complexity, review_notes
+    query_category, query_complexity, review_notes,
+    source, org_id, org_name
 FROM interactions
 WHERE engineer_approved = TRUE
   AND query_category IS NOT NULL;

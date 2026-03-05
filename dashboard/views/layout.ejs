@@ -29,7 +29,12 @@
       <a href="/" class="text-gray-400 hover:text-gray-200 text-sm">Overview</a>
       <a href="/interactions" class="text-gray-400 hover:text-gray-200 text-sm">Interactions</a>
     </div>
-    <a href="/api/export/training" class="text-xs bg-clams-700 hover:bg-clams-600 text-white px-3 py-1.5 rounded">Export JSONL</a>
+    <div class="flex items-center gap-3">
+      <select id="org-selector" class="bg-gray-800 border border-gray-700 text-gray-300 rounded px-2 py-1 text-xs">
+        <option value="">All Organizations</option>
+      </select>
+      <a id="export-link" href="/api/export/training" class="text-xs bg-clams-700 hover:bg-clams-600 text-white px-3 py-1.5 rounded">Export JSONL</a>
+    </div>
   </nav>
   <main class="max-w-7xl mx-auto px-6 py-8">
     <%- body %>

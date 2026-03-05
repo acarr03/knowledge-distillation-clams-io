@@ -1,6 +1,56 @@
+/* ===== Org selector (global) ===== */
+(function initOrgSelector() {
+  const sel = document.getElementById('org-selector');
+  if (!sel) return;
+
+  fetch('/api/orgs')
+    .then((r) => r.json())
+    .then((orgs) => {
+      orgs.forEach((o) => {
+        const opt = document.createElement('option');
+        opt.value = o.org_id;
+        opt.textContent = o.org_name || o.org_id;
+        sel.appendChild(opt);
+      });
+
+      // Restore from sessionStorage
+      const saved = sessionStorage.getItem('clams_org');
+      if (saved) sel.value = saved;
+
+      // Update export link on load
+      updateExportLink();
+    });
+
+  sel.addEventListener('change', () => {
+    sessionStorage.setItem('clams_org', sel.value);
+    updateExportLink();
+    // Reload current page content
+    if (document.getElementById('stats-page')) loadStats();
+    if (document.getElementById('interactions-page')) loadInteractions(1);
+  });
+})();
+
+function getOrgFilter() {
+  return sessionStorage.getItem('clams_org') || '';
+}
+
+function updateExportLink() {
+  const link = document.getElementById('export-link');
+  if (!link) return;
+  const org = getOrgFilter();
+  link.href = org ? `/api/export/training?org=${org}` : '/api/export/training';
+}
+
 /* ===== Overview page ===== */
 if (document.getElementById('stats-page')) {
-  fetch('/api/stats')
+  loadStats();
+}
+
+function loadStats() {
+  const org = getOrgFilter();
+  const url = org ? `/api/stats?org=${org}` : '/api/stats';
+
+  fetch(url)
     .then((r) => r.json())
     .then((d) => {
       document.getElementById('stat-total').textContent = d.total ?? '-';
@@ -57,6 +107,8 @@ function loadInteractions(page) {
   if (val('f-search')) params.set('search', val('f-search'));
   if (val('f-from')) params.set('from', val('f-from'));
   if (val('f-to')) params.set('to', val('f-to'));
+  const org = getOrgFilter();
+  if (org) params.set('org', org);
   params.set('page', page);
 
   fetch(`/api/interactions?${params}`)
@@ -74,6 +126,7 @@ function loadInteractions(page) {
           <td class="py-2 pr-3 max-w-md truncate">${esc(i.query_preview)}</td>
           <td class="py-2 pr-3"><span class="bg-gray-800 text-gray-400 px-2 py-0.5 rounded text-xs">${i.query_category || '-'}</span></td>
           <td class="py-2 pr-3 text-center">${i.query_complexity ?? '-'}</td>
+          <td class="py-2 pr-3">${i.org_name ? `<span class="bg-indigo-900/50 text-indigo-400 px-2 py-0.5 rounded text-xs">${esc(i.org_name)}</span>` : '<span class="text-gray-600 text-xs">-</span>'}</td>
           <td class="py-2 pr-3"><span class="${i.source === 'widget' ? 'bg-purple-900/50 text-purple-400' : 'bg-blue-900/50 text-blue-400'} px-2 py-0.5 rounded text-xs">${i.source || 'chat'}</span></td>
           <td class="py-2 pr-3">
             ${i.engineer_approved ? '<span class="text-green-400 text-xs font-medium">Approved</span>' : i.engineer_reviewed ? '<span class="text-red-400 text-xs font-medium">Rejected</span>' : '<span class="text-gray-600 text-xs">Pending</span>'}
@@ -132,6 +185,7 @@ function loadReview(id) {
       meta.innerHTML = [
         ['Category', d.query_category || '-'],
         ['Complexity', d.query_complexity ?? '-'],
+        ['Org', d.org_name || '-'],
         ['Source', d.source || 'chat'],
         ['Model', d.sonnet_model || '-'],
         ['Tokens In', d.sonnet_tokens_in ?? '-'],

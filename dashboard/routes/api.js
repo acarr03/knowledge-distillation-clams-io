@@ -2,9 +2,30 @@ const express = require('express');
 const { query } = require('../../src/db');
 const router = express.Router();
 
+// GET /api/orgs — Distinct organizations for dropdown
+router.get('/orgs', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT DISTINCT org_id, org_name
+       FROM interactions
+       WHERE org_id IS NOT NULL
+       ORDER BY org_name`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('[api/orgs]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/stats — Overview statistics
 router.get('/stats', async (req, res) => {
   try {
+    const { org } = req.query;
+    const orgFilter = org ? 'WHERE org_id = $1' : '';
+    const orgFilterAnd = org ? 'AND org_id = $1' : '';
+    const orgParams = org ? [org] : [];
+
     const [totals, categories, daily] = await Promise.all([
       query(`
         SELECT
@@ -15,21 +36,22 @@ router.get('/stats', async (req, res) => {
           ROUND(AVG(query_complexity), 1) AS avg_complexity,
           ROUND(SUM(sonnet_cost)::numeric, 2) AS total_cost
         FROM interactions
-      `),
+        ${orgFilter}
+      `, orgParams),
       query(`
         SELECT query_category AS category, COUNT(*)::int AS count
         FROM interactions
-        WHERE query_category IS NOT NULL
+        WHERE query_category IS NOT NULL ${orgFilterAnd}
         GROUP BY query_category
         ORDER BY count DESC
-      `),
+      `, orgParams),
       query(`
         SELECT DATE(created_at) AS day, COUNT(*)::int AS count
         FROM interactions
-        WHERE created_at >= NOW() - INTERVAL '30 days'
+        WHERE created_at >= NOW() - INTERVAL '30 days' ${orgFilterAnd}
         GROUP BY DATE(created_at)
         ORDER BY day
-      `),
+      `, orgParams),
     ]);
 
     res.json({
@@ -52,6 +74,7 @@ router.get('/interactions', async (req, res) => {
       approved,
       complexity,
       source,
+      org,
       search,
       from,
       to,
@@ -83,6 +106,10 @@ router.get('/interactions', async (req, res) => {
       conditions.push(`source = $${idx++}`);
       params.push(source);
     }
+    if (org) {
+      conditions.push(`org_id = $${idx++}`);
+      params.push(org);
+    }
     if (search) {
       conditions.push(`user_query ILIKE $${idx++}`);
       params.push(`%${search}%`);
@@ -103,7 +130,7 @@ router.get('/interactions', async (req, res) => {
       query(
         `SELECT id, LEFT(user_query, 120) AS query_preview, query_category,
                 query_complexity, engineer_reviewed, engineer_approved,
-                sonnet_cost, created_at, source
+                sonnet_cost, created_at, source, org_name
          FROM interactions ${where}
          ORDER BY id DESC
          LIMIT $${idx++} OFFSET $${idx++}`,
@@ -172,14 +199,25 @@ router.put('/interactions/:id/review', async (req, res) => {
 // GET /api/export/training — Download training_ready as JSONL
 router.get('/export/training', async (req, res) => {
   try {
-    const { source } = req.query;
+    const { source, org } = req.query;
     let sql = 'SELECT * FROM training_ready';
+    const conditions = [];
     const params = [];
+    let idx = 1;
+
     if (source) {
-      sql += ' WHERE source = $1';
+      conditions.push(`source = $${idx++}`);
       params.push(source);
     }
+    if (org) {
+      conditions.push(`org_id = $${idx++}`);
+      params.push(org);
+    }
+    if (conditions.length) {
+      sql += ` WHERE ${conditions.join(' AND ')}`;
+    }
     sql += ' ORDER BY id';
+
     const result = await query(sql, params);
     const lines = result.rows.map((row) => {
       const userContent = [row.user_query];
@@ -187,12 +225,14 @@ router.get('/export/training', async (req, res) => {
       if (row.material_context) userContent.push(`\n\nMaterial data:\n${row.material_context}`);
       if (row.compliance_context) userContent.push(`\n\nCompliance data:\n${row.compliance_context}`);
 
+      const orgLabel = row.org_name || 'TriStar Plastics, LLC';
+
       return JSON.stringify({
         messages: [
           {
             role: 'system',
             content:
-              'You are a materials engineering assistant for TriStar Plastics, specializing in engineered plastics and composites for demanding applications.',
+              `You are a materials engineering assistant for ${orgLabel}, specializing in engineered plastics and composites for demanding applications.`,
           },
           { role: 'user', content: userContent.join('') },
           { role: 'assistant', content: row.response },
@@ -202,6 +242,8 @@ router.get('/export/training', async (req, res) => {
           category: row.query_category,
           complexity: row.query_complexity,
           source: row.source || 'chat',
+          org_id: row.org_id || null,
+          org_name: row.org_name || null,
         },
       });
     });
