@@ -31,7 +31,7 @@ CREATE TABLE interactions (
 
     -- Local Model Output (Phase 2+)
     local_response  TEXT,
-    local_model     VARCHAR(100),    -- e.g. "qwen3.5-35b-a3b-clams-v1"
+    local_model     VARCHAR(100),    -- e.g. "qwen3.6-35b-a3b-clams-v1"
     local_latency_ms INTEGER,
 
     -- Classification
@@ -359,7 +359,7 @@ async function callLocalModel({ query, context, conversationId }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'qwen3.5-35b-a3b-clams',  // fine-tuned model name
+      model: 'qwen3.6-35b-a3b-clams',  // fine-tuned model name
       messages: buildMessages(query, context),
       temperature: 0.3,
       max_tokens: 4096
@@ -553,9 +553,10 @@ module.exports = { QueryRouter };
 
 | Component | Tool | Purpose |
 |-----------|------|---------|
-| Local LLM serving | Ollama | Run Qwen3.5-35B-A3B with OpenAI-compatible API |
-| Fine-tuning | Unsloth | QLoRA fine-tuning optimized for Apple Silicon |
-| Base model | Qwen3.5-35B-A3B | MoE (35B total, 3B active), Apache 2.0 |
+| Local LLM serving | Ollama | Run Qwen3.6-35B-A3B with OpenAI-compatible API |
+| Fine-tuning | MLX (on-device) / Unsloth (cloud NVIDIA) | QLoRA; Unsloth not yet native on Apple Silicon |
+| Base model (target) | Qwen3.6-35B-A3B | MoE (35B total, 3B active), Apache 2.0, QLoRA via Unsloth MoE support |
+| Base models (baselines) | Qwen3.5-27B / 35B-A3B | Prior generation, kept for benchmark comparison |
 | Embeddings eval | sentence-transformers | Semantic similarity scoring |
 | Training format | JSONL (chat format) | Standard fine-tune input |
 | Database | PostgreSQL 16.12 | `clams_distillation` database |

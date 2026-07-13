@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This project builds a proprietary AI knowledge distillation pipeline for CLAMS-IO.DEV, a Materials Intelligence Platform for the engineered plastics and composites industry. The goal is to capture interactions with Claude Sonnet, curate them with human engineering expertise, and fine-tune a local open-source model (Qwen3.5-35B-A3B) to handle the majority of queries independently — reducing API costs, building defensible IP, and creating a competitive moat.
+This project builds a proprietary AI knowledge distillation pipeline for CLAMS-IO.DEV, a Materials Intelligence Platform for the engineered plastics and composites industry. The goal is to capture interactions with Claude Sonnet, curate them with human engineering expertise, and fine-tune a local open-source model (Qwen3.6-35B-A3B) to handle the majority of queries independently — reducing API costs, building defensible IP, and creating a competitive moat.
 
 ## Owner
 
@@ -12,17 +12,18 @@ Adrian Carrera — Mechanical/Materials Engineer at TriStar Plastics LLC (owned 
 
 - **Mac Studio M4 Max** — 16-Core CPU, 40-Core GPU, 64GB Unified Memory, 1TB SSD
 - **Network**: 10Gb Ethernet via Cat 6a to Eero Max 7 (tested at 2.3 Gbps)
-- **Local Model**: Qwen3.5-35B-A3B running via Ollama (~23GB, ~45 t/s on M4 Max)
+- **Local Model (fine-tuning + inference target)**: Qwen3.6-35B-A3B running via Ollama (~24GB at Q4, MoE — 35B total / 3B active, ~45 t/s on M4 Max, 256K context, Apache 2.0). Fits 64GB with ~40GB free for RAG/context.
+- **Prior-generation baselines** (kept for benchmarking): Qwen3.5-35B-A3B (~23GB MoE) and Qwen3.5-27B (~17GB dense).
 
 ## Tech Stack
 
 - **Runtime**: Node.js v25.6.1
 - **Python**: 3.9.6 (for ML pipeline, fine-tuning, evaluation)
 - **Database**: PostgreSQL on Railway (production) + local PostgreSQL 16.12 (Homebrew) for dev
-- **Local LLM**: Ollama + Qwen3.5-35B-A3B (Apache 2.0 license, full commercial freedom)
+- **Local LLM**: Ollama + Qwen3.6-35B-A3B (MoE, Apache 2.0) as the fine-tuning + inference target; Qwen3.5 27B/35B-A3B kept as benchmark baselines
 - **AI API**: Claude Sonnet 4.5 (current production model for CLAMS)
 - **Claude Code**: v2.1.49
-- **Fine-tuning**: Unsloth (optimized for Apple Silicon), QLoRA
+- **Fine-tuning**: QLoRA — via MLX (`mlx_lm.lora`) on-device, or Unsloth on a rented NVIDIA GPU for the MoE (Unsloth is not yet native on Apple Silicon; MLX support is in progress). Train anywhere, serve locally.
 - **Evaluation**: sentence-transformers for semantic similarity scoring
 
 ## Project Structure
@@ -109,7 +110,7 @@ Indexes on: query_category, engineer_reviewed, engineer_approved, created_at, qu
 - Cost: Normal Sonnet API spend (~$315/mo at 500 queries/day)
 
 ### Phase 2: Shadow Testing (Weeks 9-16)
-- Fine-tune first local model on curated dataset using Unsloth/QLoRA
+- Fine-tune first local model on curated dataset using QLoRA (MLX on-device, or Unsloth on a rented NVIDIA GPU for the MoE)
 - Deploy shadow mode: both Sonnet and local model answer every query, only Sonnet served to user
 - Automated evaluation: semantic similarity, key fact extraction, format compliance, citation accuracy
 - Iterate on fine-tuning based on evaluation gaps
@@ -147,7 +148,7 @@ Structured interview sessions with industry veteran (30+ years experience). Reco
 
 ## Key Technical Decisions
 
-- **Qwen3.5-35B-A3B chosen over 70B dense models**: MoE architecture (35B total, 3B active) gives better speed (~45 t/s vs 8-12 t/s), lower memory footprint (~23GB vs 40GB), more RAG context headroom (~41GB free), multimodal support (text + image), 256K context window, and faster fine-tuning iterations. Quality gap narrows post-fine-tuning on domain-specific data.
+- **Qwen3.6-35B-A3B (MoE) chosen as the fine-tuning + inference target** (updated 2026-07-10, superseding the 2026-03-10 pick of Qwen3.5-27B dense): The original reason to avoid the MoE — QLoRA incompatibility with 4-bit MoE experts — no longer holds. Unsloth shipped MoE QLoRA support (Feb 2026); a 30B-A3B-class model fine-tunes in ~17.5GB with a documented 16-bit→4-bit conversion step and no reported routing instability. With that blocker gone, the MoE wins on the axes that matter here: it fits 64GB with far more RAG/context headroom (~24GB at Q4), and Adrian's own 2026-03-10 benchmark measured the 35B-A3B MoE at ~3x faster than the 27B dense across all 5 CLAMS categories (471s vs 1,395s total) with equal-or-better domain accuracy. Qwen3.6 (Apr 2026, Apache 2.0) is the current open generation; the closed Qwen "Max/Plus/Flash" and 3.7 tiers are API-only (Alibaba DashScope) and irrelevant to a local/IP strategy. Fine-tuning runs via MLX on-device or Unsloth on a rented NVIDIA GPU; the model is served locally either way. Qwen3.5 27B + 35B-A3B are retained as benchmark baselines.
 - **Human-in-the-loop curation**: Every training example is reviewed, edited, and approved by an engineer before entering the training set. This makes the dataset legally defensible as "Adrian's curated materials engineering knowledge" rather than raw Sonnet output copies.
 - **Apache 2.0 license**: Full commercial freedom. No revenue caps, no attribution requirements. Critical for equity asset.
 
