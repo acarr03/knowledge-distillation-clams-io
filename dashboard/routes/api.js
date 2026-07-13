@@ -2,33 +2,47 @@ const express = require('express');
 const { query } = require('../../src/db');
 const router = express.Router();
 
-// GET /api/orgs — Distinct organizations for dropdown
+// The one-time wipe archive. Selectors read live + archive so known orgs/users
+// stay selectable even after a clean-slate wipe. Optional (may be dropped later).
+const WIPE_ARCHIVE = 'interactions_archive_20260713';
+
+// GET /api/orgs — Distinct organizations for dropdown (live + archive)
 router.get('/orgs', async (req, res) => {
   try {
-    const result = await query(
-      `SELECT DISTINCT org_id, org_name
-       FROM interactions
-       WHERE org_id IS NOT NULL
-       ORDER BY org_name`
+    const live = await query(
+      `SELECT DISTINCT org_id, org_name FROM interactions WHERE org_id IS NOT NULL`
     );
-    res.json(result.rows);
+    let archived = { rows: [] };
+    try {
+      archived = await query(
+        `SELECT DISTINCT org_id, org_name FROM ${WIPE_ARCHIVE} WHERE org_id IS NOT NULL`
+      );
+    } catch (_) { /* archive table optional */ }
+    const map = new Map();
+    [...live.rows, ...archived.rows].forEach((r) => map.set(String(r.org_id), r));
+    res.json([...map.values()].sort((a, b) => (a.org_name || '').localeCompare(b.org_name || '')));
   } catch (err) {
     console.error('[api/orgs]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// GET /api/users — Distinct users (by email) for dropdown
+// GET /api/users — Distinct users (by email) for dropdown (live + archive)
 router.get('/users', async (req, res) => {
   try {
-    const result = await query(
+    const sql = (t) =>
       `SELECT user_email, MAX(org_name) AS org_name, COUNT(*)::int AS interactions
-       FROM interactions
-       WHERE user_email IS NOT NULL
-       GROUP BY user_email
-       ORDER BY user_email`
-    );
-    res.json(result.rows);
+       FROM ${t} WHERE user_email IS NOT NULL GROUP BY user_email`;
+    const live = await query(sql('interactions'));
+    let archived = { rows: [] };
+    try { archived = await query(sql(WIPE_ARCHIVE)); } catch (_) { /* optional */ }
+    const map = new Map();
+    [...live.rows, ...archived.rows].forEach((r) => {
+      const prev = map.get(r.user_email);
+      if (prev) prev.interactions += r.interactions;
+      else map.set(r.user_email, { ...r });
+    });
+    res.json([...map.values()].sort((a, b) => (a.user_email || '').localeCompare(b.user_email || '')));
   } catch (err) {
     console.error('[api/users]', err.message);
     res.status(500).json({ error: err.message });
