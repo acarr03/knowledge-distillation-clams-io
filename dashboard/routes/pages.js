@@ -21,4 +21,8 @@ router.get('/conversations/:cid', (req, res) => {
   res.render('conversation', { cid: req.params.cid });
 });
 
+router.get('/aichat', (req, res) => {
+  res.render('aichat');
+});
+
 module.exports = router;

@@ -383,3 +383,121 @@ function esc(str) {
   d.textContent = str || '';
   return d.innerHTML;
 }
+
+/* ===== AI Chat test bench (local Ollama) ===== */
+let aiMessages = [];
+if (document.getElementById('aichat-page')) initAiChat();
+
+function initAiChat() {
+  const sel = document.getElementById('ai-model');
+  fetch('/api/aichat/models')
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.models && d.models.length) {
+        d.models.forEach((m) => {
+          const o = document.createElement('option');
+          o.value = m;
+          o.textContent = m;
+          sel.appendChild(o);
+        });
+        sel.value = d.models.find((m) => m.startsWith('qwen3.6')) || d.models[0];
+      } else {
+        sel.innerHTML = '<option value="">(no local models found)</option>';
+      }
+    })
+    .catch(() => { sel.innerHTML = '<option value="">(Ollama unreachable)</option>'; });
+
+  document.getElementById('ai-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); aiSend(); }
+  });
+}
+
+function aiRenderTranscript() {
+  const el = document.getElementById('ai-transcript');
+  el.innerHTML = aiMessages
+    .map((m) => {
+      const isUser = m.role === 'user';
+      return `<div class="bg-gray-900 rounded-lg border ${isUser ? 'border-gray-800' : 'border-clams-700/30'} p-4">
+        <div class="text-xs font-semibold uppercase tracking-wide mb-1 ${isUser ? 'text-gray-500' : 'text-clams-500'}">${isUser ? 'You' : 'Model'}</div>
+        ${m.thinking ? `<details class="mb-2" open><summary class="text-xs text-gray-600 cursor-pointer">Thinking</summary><pre class="text-xs text-gray-500 whitespace-pre-wrap mt-1 max-h-64 overflow-auto">${esc(m.thinking)}</pre></details>` : ''}
+        <div class="text-gray-200 whitespace-pre-wrap text-sm">${esc(m.content) || '<span class="text-gray-600">…</span>'}</div>
+        ${m.meta ? `<div class="text-xs text-gray-600 mt-2">${esc(m.meta)}</div>` : ''}
+      </div>`;
+    })
+    .join('');
+  window.scrollTo(0, document.body.scrollHeight);
+}
+
+async function aiSend() {
+  const input = document.getElementById('ai-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const model = document.getElementById('ai-model').value;
+  const system = document.getElementById('ai-system').value.trim();
+  const sendBtn = document.getElementById('ai-send');
+
+  aiMessages.push({ role: 'user', content: text });
+  input.value = '';
+
+  const payload = [];
+  if (system) payload.push({ role: 'system', content: system });
+  aiMessages.forEach((m) => payload.push({ role: m.role, content: m.content }));
+
+  const assistant = { role: 'assistant', content: '', thinking: '', meta: '' };
+  aiMessages.push(assistant);
+  aiRenderTranscript();
+  sendBtn.disabled = true;
+  sendBtn.textContent = '…';
+  const started = Date.now();
+
+  try {
+    const resp = await fetch('/api/aichat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages: payload }),
+    });
+    if (!resp.ok || !resp.body) {
+      const e = await resp.json().catch(() => ({ error: 'stream failed' }));
+      assistant.content = `[error] ${e.error || resp.status}`;
+      aiRenderTranscript();
+      return;
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let obj;
+        try { obj = JSON.parse(line); } catch { continue; }
+        if (obj.message) {
+          if (obj.message.thinking) assistant.thinking += obj.message.thinking;
+          if (obj.message.content) assistant.content += obj.message.content;
+        }
+        if (obj.done) {
+          const secs = ((Date.now() - started) / 1000).toFixed(1);
+          const outTok = obj.eval_count || 0;
+          const tps = obj.eval_duration ? (outTok / (obj.eval_duration / 1e9)).toFixed(1) : '?';
+          assistant.meta = `${obj.model || model} · ${outTok} tok · ${tps} tok/s · ${secs}s`;
+        }
+        aiRenderTranscript();
+      }
+    }
+  } catch (err) {
+    assistant.content += `\n[connection error: ${err.message}]`;
+  } finally {
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send';
+    aiRenderTranscript();
+  }
+}
+
+function aiClear() {
+  aiMessages = [];
+  aiRenderTranscript();
+}

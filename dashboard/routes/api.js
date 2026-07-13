@@ -378,4 +378,52 @@ router.get('/export/training', async (req, res) => {
   }
 });
 
+// ===== AI Chat test bench (local Ollama) — sandbox, NOT logged to the dataset =====
+const OLLAMA = process.env.OLLAMA_URL || 'http://localhost:11434';
+
+// GET /api/aichat/models — locally available Ollama models
+router.get('/aichat/models', async (req, res) => {
+  try {
+    const r = await fetch(`${OLLAMA}/api/tags`);
+    if (!r.ok) throw new Error(`Ollama responded ${r.status}`);
+    const d = await r.json();
+    res.json({ models: (d.models || []).map((m) => m.name).sort() });
+  } catch (err) {
+    console.error('[api/aichat/models]', err.message);
+    res.status(502).json({ error: `Ollama not reachable at ${OLLAMA}: ${err.message}` });
+  }
+});
+
+// POST /api/aichat — stream a chat completion from the local model (NDJSON passthrough)
+router.post('/aichat', async (req, res) => {
+  try {
+    const { model, messages } = req.body || {};
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return res.status(400).json({ error: 'messages[] required' });
+    }
+    const upstream = await fetch(`${OLLAMA}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model || 'qwen3.6:35b-a3b', messages, stream: true }),
+    });
+    if (!upstream.ok || !upstream.body) {
+      const text = await upstream.text().catch(() => '');
+      return res.status(502).json({ error: `Ollama ${upstream.status}: ${text.slice(0, 200)}` });
+    }
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Cache-Control', 'no-cache');
+    const reader = upstream.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
+  } catch (err) {
+    console.error('[api/aichat]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+    else res.end();
+  }
+});
+
 module.exports = router;

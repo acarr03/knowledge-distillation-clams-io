@@ -1,0 +1,27 @@
+<%- include('layout', { body: `
+<div id="aichat-page">
+  <div class="mb-4">
+    <h1 class="text-2xl font-bold">AI Chat — Local Model Test Bench</h1>
+    <p class="text-xs text-gray-500 mt-1">Prompt the local Ollama model to probe its knowledge &amp; reasoning as you bolster its knowledge base. Sandbox only — these messages are not logged to the training dataset.</p>
+  </div>
+
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-4 flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Model</label>
+      <select id="ai-model" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm min-w-[220px]"></select>
+    </div>
+    <div class="flex-1 min-w-[300px]">
+      <label class="block text-xs text-gray-500 mb-1">System prompt (optional)</label>
+      <input id="ai-system" type="text" class="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm" value="You are a materials engineering assistant for TriStar Plastics, specializing in engineered plastics and composites for demanding applications.">
+    </div>
+    <button onclick="aiClear()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-1.5 rounded text-sm">Clear</button>
+  </div>
+
+  <div id="ai-transcript" class="space-y-3 mb-4"></div>
+
+  <div class="bg-gray-900 rounded-lg border border-gray-800 p-3 flex gap-2 items-end sticky bottom-4">
+    <textarea id="ai-input" rows="2" placeholder="Ask the model something…  (Enter to send · Shift+Enter for newline)" class="flex-1 bg-gray-800 border border-gray-700 text-gray-200 rounded px-3 py-2 text-sm"></textarea>
+    <button id="ai-send" onclick="aiSend()" class="bg-clams-700 hover:bg-clams-600 text-white px-5 py-2 rounded text-sm font-medium">Send</button>
+  </div>
+</div>
+` }) %>
