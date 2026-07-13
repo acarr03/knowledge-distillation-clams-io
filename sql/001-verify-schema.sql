@@ -47,6 +47,11 @@ CREATE TABLE IF NOT EXISTS interactions (
     org_id                   UUID,
     org_name                 TEXT,
 
+    -- Source + per-user attribution
+    source                   TEXT DEFAULT 'chat',
+    user_id                  TEXT,
+    user_email               TEXT,
+
     -- CHECK constraints
     CONSTRAINT interactions_query_category_check CHECK (
         query_category = ANY (ARRAY[
@@ -71,15 +76,16 @@ CREATE INDEX IF NOT EXISTS idx_interactions_created ON interactions(created_at);
 CREATE INDEX IF NOT EXISTS idx_interactions_complexity ON interactions(query_complexity);
 CREATE INDEX IF NOT EXISTS idx_interactions_conversation ON interactions(conversation_id);
 CREATE INDEX IF NOT EXISTS idx_interactions_org_id ON interactions(org_id);
+CREATE INDEX IF NOT EXISTS idx_interactions_user_id ON interactions(user_id);
 
 -- View: training-ready examples with engineer approval
 CREATE OR REPLACE VIEW training_ready AS
 SELECT
-    id, user_query, rag_context, material_context,
+    id, conversation_id, user_query, rag_context, material_context,
     compliance_context, system_prompt,
     COALESCE(engineer_edited_response, sonnet_response) AS response,
     query_category, query_complexity, review_notes,
-    source, org_id, org_name
+    source, org_id, org_name, user_id, user_email, created_at
 FROM interactions
 WHERE engineer_approved = TRUE
   AND query_category IS NOT NULL;

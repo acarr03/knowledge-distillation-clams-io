@@ -1,11 +1,13 @@
 <%- include('layout', { body: `
-<div id="interactions-page">
+<div id="conversations-page">
   <div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">Interactions</h1>
+    <div>
+      <h1 class="text-2xl font-bold">Conversations</h1>
+      <p class="text-xs text-gray-500 mt-1">Grouped by chat session — review and approve the whole thread as one training example.</p>
+    </div>
     <span id="result-count" class="text-sm text-gray-500"></span>
   </div>
 
-  <!-- Filter bar -->
   <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 flex flex-wrap gap-3 items-end">
     <div>
       <label class="block text-xs text-gray-500 mb-1">Category</label>
@@ -24,36 +26,19 @@
     <div>
       <label class="block text-xs text-gray-500 mb-1">Reviewed</label>
       <select id="f-reviewed" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
-        <option value="">All</option>
-        <option value="true">Yes</option>
-        <option value="false">No</option>
+        <option value="">All</option><option value="true">Yes</option><option value="false">No</option>
       </select>
     </div>
     <div>
       <label class="block text-xs text-gray-500 mb-1">Approved</label>
       <select id="f-approved" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
-        <option value="">All</option>
-        <option value="true">Yes</option>
-        <option value="false">No</option>
-      </select>
-    </div>
-    <div>
-      <label class="block text-xs text-gray-500 mb-1">Complexity</label>
-      <select id="f-complexity" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
-        <option value="">All</option>
-        <option value="1">1</option>
-        <option value="2">2</option>
-        <option value="3">3</option>
-        <option value="4">4</option>
-        <option value="5">5</option>
+        <option value="">All</option><option value="true">Yes</option><option value="false">No</option>
       </select>
     </div>
     <div>
       <label class="block text-xs text-gray-500 mb-1">Source</label>
       <select id="f-source" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
-        <option value="">All</option>
-        <option value="chat">Chat</option>
-        <option value="widget">Widget</option>
+        <option value="">All</option><option value="chat">Chat</option><option value="widget">Widget</option>
       </select>
     </div>
     <div>
@@ -66,33 +51,28 @@
     </div>
     <div class="flex-1 min-w-[200px]">
       <label class="block text-xs text-gray-500 mb-1">Search query</label>
-      <input id="f-search" type="text" placeholder="Search..." class="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
+      <input id="f-search" type="text" placeholder="Search any turn..." class="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
     </div>
-    <button onclick="loadInteractions(1)" class="bg-clams-700 hover:bg-clams-600 text-white px-4 py-1.5 rounded text-sm">Filter</button>
+    <button onclick="loadConversations(1)" class="bg-clams-700 hover:bg-clams-600 text-white px-4 py-1.5 rounded text-sm">Filter</button>
   </div>
 
-  <!-- Table -->
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
         <tr class="text-left text-gray-500 border-b border-gray-800">
-          <th class="pb-2 pr-3">ID</th>
-          <th class="pb-2 pr-3">Query</th>
-          <th class="pb-2 pr-3">Category</th>
-          <th class="pb-2 pr-3">Cmplx</th>
-          <th class="pb-2 pr-3">Org</th>
+          <th class="pb-2 pr-3">Conversation (first message)</th>
+          <th class="pb-2 pr-3">Turns</th>
           <th class="pb-2 pr-3">User</th>
+          <th class="pb-2 pr-3">Org</th>
           <th class="pb-2 pr-3">Source</th>
           <th class="pb-2 pr-3">Status</th>
-          <th class="pb-2 pr-3">Cost</th>
-          <th class="pb-2">Date</th>
+          <th class="pb-2">Started</th>
         </tr>
       </thead>
-      <tbody id="interactions-body" class="divide-y divide-gray-800/50"></tbody>
+      <tbody id="conversations-body" class="divide-y divide-gray-800/50"></tbody>
     </table>
   </div>
 
-  <!-- Pagination -->
   <div id="pagination" class="mt-4 flex items-center justify-center gap-2"></div>
 </div>
 ` }) %>

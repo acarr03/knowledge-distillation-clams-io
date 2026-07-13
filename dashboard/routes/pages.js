@@ -13,4 +13,12 @@ router.get('/interactions/:id', (req, res) => {
   res.render('review', { id: req.params.id });
 });
 
+router.get('/conversations', (req, res) => {
+  res.render('conversations');
+});
+
+router.get('/conversations/:cid', (req, res) => {
+  res.render('conversation', { cid: req.params.cid });
+});
+
 module.exports = router;
