@@ -501,3 +501,212 @@ function aiClear() {
   aiMessages = [];
   aiRenderTranscript();
 }
+
+/* ===== Shadow captures ===== */
+function shadowVerdictBadge(v) {
+  const map = {
+    local_better: 'text-green-400',
+    equivalent: 'text-blue-400',
+    claude_better: 'text-amber-400',
+    reject: 'text-red-400',
+  };
+  if (!v) return '<span class="text-gray-600 text-xs">-</span>';
+  return `<span class="${map[v] || 'text-gray-400'} text-xs font-medium">${esc(v)}</span>`;
+}
+
+function shadowStatusBadge(s) {
+  const map = {
+    captured: 'bg-gray-800 text-gray-400',
+    replayed: 'bg-indigo-900/50 text-indigo-400',
+    scored: 'bg-green-900/50 text-green-400',
+  };
+  return `<span class="${map[s] || 'bg-gray-800 text-gray-500'} px-2 py-0.5 rounded text-xs">${esc(s || 'captured')}</span>`;
+}
+
+/* ===== Shadow list page ===== */
+if (document.getElementById('shadow-page')) loadShadow(1);
+
+function loadShadow(page) {
+  const params = new URLSearchParams();
+  const val = (id) => document.getElementById(id)?.value;
+  if (val('f-status')) params.set('status', val('f-status'));
+  if (val('f-node')) params.set('node', val('f-node'));
+  withGlobalFilters(params);
+  params.set('page', page);
+
+  fetch(`/api/shadow?${params}`)
+    .then((r) => r.json())
+    .then((d) => {
+      document.getElementById('result-count').textContent =
+        `${d.total} captures (page ${d.page}/${d.pages || 1})`;
+
+      const body = document.getElementById('shadow-body');
+      body.innerHTML = (d.captures || [])
+        .map((c) => `
+        <tr class="hover:bg-gray-900/50 cursor-pointer" onclick="location.href='/shadow/${c.id}'">
+          <td class="py-2 pr-3 text-gray-500">${c.id}</td>
+          <td class="py-2 pr-3 max-w-md truncate">${c.claude_preview ? esc(c.claude_preview) : '<span class="text-gray-600">-</span>'}</td>
+          <td class="py-2 pr-3 text-gray-400 text-xs">${c.node ? esc(c.node) : '-'}</td>
+          <td class="py-2 pr-3">${c.org_name ? `<span class="bg-indigo-900/50 text-indigo-400 px-2 py-0.5 rounded text-xs">${esc(c.org_name)}</span>` : '<span class="text-gray-600 text-xs">-</span>'}</td>
+          <td class="py-2 pr-3 text-gray-400 text-xs">${c.user_email ? esc(c.user_email) : '<span class="text-gray-600">-</span>'}</td>
+          <td class="py-2 pr-3 text-gray-400 text-xs">${c.local_model ? esc(c.local_model) : '<span class="text-gray-600">-</span>'}</td>
+          <td class="py-2 pr-3">${shadowVerdictBadge(c.engineer_verdict)}</td>
+          <td class="py-2 pr-3">${shadowStatusBadge(c.status)}</td>
+          <td class="py-2 text-gray-500 text-xs">${c.created_at ? new Date(c.created_at).toLocaleDateString() : '-'}</td>
+        </tr>`)
+        .join('');
+
+      renderPagination('pagination', d, 'loadShadow');
+    });
+}
+
+/* ===== Shadow detail page ===== */
+if (document.getElementById('shadow-detail-page')) {
+  loadShadowDetail(document.getElementById('shadow-detail-page').dataset.id);
+}
+
+function prettyJson(v) {
+  if (v == null) return 'None';
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+}
+
+function loadShadowDetail(id) {
+  fetch(`/api/shadow/${id}`)
+    .then((r) => r.json())
+    .then((d) => {
+      document.getElementById('s-id').textContent = d.id;
+      document.getElementById('s-system').textContent = d.request_system || 'None';
+      document.getElementById('s-messages').textContent = prettyJson(d.request_messages);
+      document.getElementById('s-tools').textContent = prettyJson(d.request_tools);
+      document.getElementById('s-claude').textContent = d.claude_response || '(no response)';
+      document.getElementById('s-local').textContent = d.local_response || '';
+      if (d.review_notes) document.getElementById('s-notes').value = d.review_notes;
+
+      const localMeta = document.getElementById('s-local-meta');
+      if (d.local_model || d.local_latency_ms != null || d.local_tokens_out != null) {
+        const parts = [];
+        if (d.local_model) parts.push(esc(d.local_model));
+        if (d.local_tokens_out != null) parts.push(`${d.local_tokens_out} tok`);
+        if (d.local_latency_ms != null) parts.push(`${(d.local_latency_ms / 1000).toFixed(1)}s`);
+        localMeta.innerHTML = parts.join(' · ');
+      } else {
+        localMeta.textContent = '';
+      }
+
+      document.getElementById('s-status-badge').innerHTML = shadowStatusBadge(d.status);
+
+      const meta = document.getElementById('s-meta');
+      meta.innerHTML = [
+        ['Node', d.node || '-'],
+        ['Model', d.request_model || '-'],
+        ['Thinking', d.thinking_enabled == null ? '-' : (d.thinking_enabled ? 'on' : 'off')],
+        ['Org', d.org_name || '-'],
+        ['User', d.user_email || '-'],
+        ['Stop', d.claude_stop_reason || '-'],
+        ['Tokens In', d.claude_tokens_in ?? '-'],
+        ['Tokens Out', d.claude_tokens_out ?? '-'],
+        ['Latency', d.claude_latency_ms != null ? `${d.claude_latency_ms}ms` : '-'],
+        ['Date', d.created_at ? new Date(d.created_at).toLocaleString() : '-'],
+      ]
+        .map(([label, v]) => `
+        <div class="bg-gray-800/50 rounded px-3 py-2">
+          <div class="text-xs text-gray-500">${label}</div>
+          <div class="text-sm font-medium">${esc(String(v))}</div>
+        </div>`)
+        .join('');
+    });
+
+  // Populate the local-model dropdown (reuse the aichat models endpoint)
+  const sel = document.getElementById('s-model');
+  fetch('/api/aichat/models')
+    .then((r) => r.json())
+    .then((data) => {
+      if (data.models && data.models.length) {
+        data.models.forEach((m) => {
+          const o = document.createElement('option');
+          o.value = m;
+          o.textContent = m;
+          sel.appendChild(o);
+        });
+        sel.value = data.models.find((m) => m.startsWith('qwen3.6')) || data.models[0];
+      } else {
+        sel.innerHTML = '<option value="">(no local models found)</option>';
+      }
+    })
+    .catch(() => { sel.innerHTML = '<option value="">(Ollama unreachable)</option>'; });
+}
+
+async function shadowReplay() {
+  const id = document.getElementById('shadow-detail-page').dataset.id;
+  const model = document.getElementById('s-model').value;
+  const runBtn = document.getElementById('s-run');
+  const out = document.getElementById('s-local');
+  const metaEl = document.getElementById('s-local-meta');
+
+  out.textContent = '';
+  metaEl.textContent = '';
+  runBtn.disabled = true;
+  runBtn.textContent = '…';
+  const started = Date.now();
+
+  try {
+    const resp = await fetch(`/api/shadow/${id}/replay`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model }),
+    });
+    if (!resp.ok || !resp.body) {
+      const e = await resp.json().catch(() => ({ error: 'stream failed' }));
+      out.textContent = `[error] ${e.error || resp.status}`;
+      return;
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let full = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let obj;
+        try { obj = JSON.parse(line); } catch { continue; }
+        if (obj.message && obj.message.content) {
+          full += obj.message.content;
+          out.textContent = full;
+        }
+        if (obj.done) {
+          const secs = ((Date.now() - started) / 1000).toFixed(1);
+          const outTok = obj.eval_count || 0;
+          const tps = obj.eval_duration ? (outTok / (obj.eval_duration / 1e9)).toFixed(1) : '?';
+          metaEl.innerHTML = `${esc(obj.model || model)} · ${outTok} tok · ${tps} tok/s · ${secs}s`;
+        }
+      }
+    }
+  } catch (err) {
+    out.textContent += `\n[connection error: ${err.message}]`;
+  } finally {
+    runBtn.disabled = false;
+    runBtn.textContent = 'Run local model';
+  }
+}
+
+function submitVerdict(verdict) {
+  const id = document.getElementById('shadow-detail-page').dataset.id;
+  const notes = document.getElementById('s-notes').value.trim();
+  fetch(`/api/shadow/${id}/verdict`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ engineer_verdict: verdict, review_notes: notes || null }),
+  })
+    .then((r) => r.json())
+    .then(() => {
+      const toast = document.getElementById('s-toast');
+      toast.className = 'mt-3 text-sm text-clams-500';
+      toast.textContent = `Saved verdict: ${verdict}.`;
+      loadShadowDetail(id);
+    });
+}

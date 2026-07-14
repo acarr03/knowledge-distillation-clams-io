@@ -3,6 +3,12 @@ const { scoreComplexity } = require('./src/complexity.js');
 const { calculateCost, calculateCostFromUsage } = require('./src/cost.js');
 const { getPool, query, closePool } = require('./src/db.js');
 const { logInteraction, logInteractionAsync } = require('./src/logger.js');
+const {
+  captureShadow,
+  captureShadowAsync,
+  anthropicToOllamaMessages,
+  extractClaudeText,
+} = require('./src/shadow.js');
 const { ClamsAnthropicClient } = require('./src/client.js');
 const { config } = require('./src/config.js');
 
@@ -17,6 +23,10 @@ module.exports = {
   closePool,
   logInteraction,
   logInteractionAsync,
+  captureShadow,
+  captureShadowAsync,
+  anthropicToOllamaMessages,
+  extractClaudeText,
   ClamsAnthropicClient,
   config,
 };

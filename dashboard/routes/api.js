@@ -1,5 +1,6 @@
 const express = require('express');
 const { query } = require('../../src/db');
+const { anthropicToOllamaMessages } = require('../../src/shadow');
 const router = express.Router();
 
 // The one-time wipe archive. Selectors read live + archive so known orgs/users
@@ -435,6 +436,158 @@ router.post('/aichat', async (req, res) => {
     res.end();
   } catch (err) {
     console.error('[api/aichat]', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+    else res.end();
+  }
+});
+
+// ===== Shadow captures (Phase 2 shadow testing) =====
+
+// GET /api/shadow — paginated, filtered list of shadow captures
+router.get('/shadow', async (req, res) => {
+  try {
+    const { org, user, status, node, page = 1, limit = 25 } = req.query;
+
+    const conditions = [];
+    const params = [];
+    let idx = 1;
+
+    if (org) { conditions.push(`org_id = $${idx++}`); params.push(org); }
+    if (user) { conditions.push(`user_email = $${idx++}`); params.push(user); }
+    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
+    if (node) { conditions.push(`node = $${idx++}`); params.push(node); }
+
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+    const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+
+    const [rows, countResult] = await Promise.all([
+      query(
+        `SELECT id, conversation_id, LEFT(claude_response, 120) AS claude_preview,
+                node, status, org_name, user_email, local_model, engineer_verdict, created_at
+         FROM shadow_captures ${where}
+         ORDER BY id DESC
+         LIMIT $${idx++} OFFSET $${idx++}`,
+        [...params, parseInt(limit, 10), offset],
+      ),
+      query(`SELECT COUNT(*)::int AS total FROM shadow_captures ${where}`, params),
+    ]);
+
+    res.json({
+      captures: rows.rows,
+      total: countResult.rows[0].total,
+      page: parseInt(page, 10),
+      pages: Math.ceil(countResult.rows[0].total / parseInt(limit, 10)),
+    });
+  } catch (err) {
+    console.error('[api/shadow]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/shadow/:id — full single shadow capture (JSONB columns auto-parsed by pg)
+router.get('/shadow/:id', async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM shadow_captures WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[api/shadow/:id]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/shadow/:id/verdict — record engineer verdict + notes, mark scored
+router.put('/shadow/:id/verdict', async (req, res) => {
+  try {
+    const { engineer_verdict, review_notes } = req.body;
+    const result = await query(
+      `UPDATE shadow_captures
+       SET engineer_verdict = COALESCE($1, engineer_verdict),
+           review_notes = COALESCE($2, review_notes),
+           status = 'scored'
+       WHERE id = $3
+       RETURNING id, engineer_verdict, status`,
+      [engineer_verdict ?? null, review_notes ?? null, req.params.id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[api/shadow/:id/verdict]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/shadow/:id/replay — stream the local model's answer for a capture,
+// passing through Ollama's NDJSON while accumulating server-side to persist local_*.
+router.post('/shadow/:id/replay', async (req, res) => {
+  try {
+    const capture = await query('SELECT * FROM shadow_captures WHERE id = $1', [req.params.id]);
+    if (capture.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    const row = capture.rows[0];
+
+    const messages = anthropicToOllamaMessages({
+      system: row.request_system,
+      messages: row.request_messages, // JSONB → already parsed to a JS array by pg
+    });
+    if (messages.length === 0) {
+      return res.status(400).json({ error: 'Capture has no replayable text content' });
+    }
+
+    const model = (req.body && req.body.model) || 'qwen3.6:35b-a3b';
+    const started = Date.now();
+
+    const upstream = await fetch(`${OLLAMA}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages, stream: true }),
+    });
+    if (!upstream.ok || !upstream.body) {
+      const text = await upstream.text().catch(() => '');
+      return res.status(502).json({ error: `Ollama ${upstream.status}: ${text.slice(0, 200)}` });
+    }
+
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    // Pass the stream through to the browser while accumulating the full answer
+    // and final stats so we can persist them after the response ends.
+    let full = '';
+    let evalCount = null;
+    let evalDuration = null;
+    let buffer = '';
+    const reader = upstream.body.getReader();
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let obj;
+        try { obj = JSON.parse(line); } catch { continue; }
+        if (obj.message && obj.message.content) full += obj.message.content;
+        if (obj.done) {
+          evalCount = obj.eval_count ?? null;
+          evalDuration = obj.eval_duration ?? null;
+        }
+      }
+    }
+    res.end();
+
+    // Persist the replay result — fire and forget, never break the response.
+    const latencyMs = evalDuration != null ? Math.round(evalDuration / 1e6) : (Date.now() - started);
+    query(
+      `UPDATE shadow_captures
+       SET local_model = $1, local_response = $2, local_tokens_out = $3,
+           local_latency_ms = $4, status = 'replayed'
+       WHERE id = $5`,
+      [model, full || null, evalCount, latencyMs, req.params.id],
+    ).catch((e) => console.error('[api/shadow/:id/replay] persist failed:', e.message));
+  } catch (err) {
+    console.error('[api/shadow/:id/replay]', err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message });
     else res.end();
   }

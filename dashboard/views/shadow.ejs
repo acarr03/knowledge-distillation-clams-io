@@ -1,0 +1,52 @@
+<%- include('layout', { body: `
+<div id="shadow-page">
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold">Shadow Captures</h1>
+      <p class="text-xs text-gray-500 mt-1">Real Claude requests captured in production. Replay each against the local model and compare, side by side.</p>
+    </div>
+    <span id="result-count" class="text-sm text-gray-500"></span>
+  </div>
+
+  <!-- Filter bar -->
+  <div class="bg-gray-900 rounded-lg p-4 border border-gray-800 mb-6 flex flex-wrap gap-3 items-end">
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Status</label>
+      <select id="f-status" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
+        <option value="">All</option>
+        <option value="captured">captured</option>
+        <option value="replayed">replayed</option>
+        <option value="scored">scored</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Node</label>
+      <input id="f-node" type="text" placeholder="e.g. basicResponse" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm">
+    </div>
+    <button onclick="loadShadow(1)" class="bg-clams-700 hover:bg-clams-600 text-white px-4 py-1.5 rounded text-sm">Filter</button>
+  </div>
+
+  <!-- Table -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-gray-500 border-b border-gray-800">
+          <th class="pb-2 pr-3">ID</th>
+          <th class="pb-2 pr-3">Claude answer</th>
+          <th class="pb-2 pr-3">Node</th>
+          <th class="pb-2 pr-3">Org</th>
+          <th class="pb-2 pr-3">User</th>
+          <th class="pb-2 pr-3">Local model</th>
+          <th class="pb-2 pr-3">Verdict</th>
+          <th class="pb-2 pr-3">Status</th>
+          <th class="pb-2">Date</th>
+        </tr>
+      </thead>
+      <tbody id="shadow-body" class="divide-y divide-gray-800/50"></tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <div id="pagination" class="mt-4 flex items-center justify-center gap-2"></div>
+</div>
+` }) %>

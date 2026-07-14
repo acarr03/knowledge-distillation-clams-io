@@ -25,4 +25,12 @@ router.get('/aichat', (req, res) => {
   res.render('aichat');
 });
 
+router.get('/shadow', (req, res) => {
+  res.render('shadow');
+});
+
+router.get('/shadow/:id', (req, res) => {
+  res.render('shadow-detail', { id: req.params.id });
+});
+
 module.exports = router;
