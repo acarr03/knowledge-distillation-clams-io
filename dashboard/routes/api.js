@@ -325,6 +325,40 @@ router.put('/conversations/:cid/review', async (req, res) => {
   }
 });
 
+// PUT /api/conversations/:cid/split — move turns from fromId onward (and their shadow
+// captures) to a new conversation_id, so a mis-grouped session can be split in curation.
+router.put('/conversations/:cid/split', async (req, res) => {
+  try {
+    const cid = req.params.cid;
+    const fromId = parseInt(req.body.fromId, 10);
+    if (!Number.isInteger(fromId)) return res.status(400).json({ error: 'fromId required' });
+
+    const pivot = await query(
+      'SELECT created_at FROM interactions WHERE id = $1 AND conversation_id = $2',
+      [fromId, cid],
+    );
+    if (pivot.rows.length === 0) return res.status(404).json({ error: 'Turn not in this conversation' });
+    const fromTs = pivot.rows[0].created_at;
+
+    const newCid = 'session_' + Date.now() + '_split' + Math.random().toString(36).slice(2, 8);
+
+    const moved = await query(
+      'UPDATE interactions SET conversation_id = $1 WHERE conversation_id = $2 AND id >= $3 RETURNING id',
+      [newCid, cid, fromId],
+    );
+    // shadow_captures don't link to interaction ids — carry them by conversation_id + time.
+    const movedShadow = await query(
+      'UPDATE shadow_captures SET conversation_id = $1 WHERE conversation_id = $2 AND created_at >= $3 RETURNING id',
+      [newCid, cid, fromTs],
+    );
+
+    res.json({ new_conversation_id: newCid, turns_moved: moved.rows.length, shadow_moved: movedShadow.rows.length });
+  } catch (err) {
+    console.error('[api/conversations/:cid/split]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/export/training — Approved conversations as multi-turn JSONL training examples
 router.get('/export/training', async (req, res) => {
   try {
@@ -353,7 +387,8 @@ router.get('/export/training', async (req, res) => {
     const lines = [];
     for (const turns of groups.values()) {
       const first = turns[0];
-      const orgLabel = first.org_name || 'TriStar Plastics, LLC';
+      // Fallback for legacy rows logged before org capture; matches the DB canonical exactly.
+      const orgLabel = first.org_name || 'TriStar Plastics, LLC.';
       const messages = [{
         role: 'system',
         content: `You are a materials engineering assistant for ${orgLabel}, specializing in engineered plastics and composites for demanding applications.`,
@@ -448,28 +483,40 @@ router.get('/shadow', async (req, res) => {
   try {
     const { org, user, status, node, page = 1, limit = 25 } = req.query;
 
+    // Shadow rows only carry org_id/user_id at capture time (the agent node's state
+    // has no org_name/user_email). Enrich from the correlated interaction (same
+    // conversation_id) so display + org/user filtering work like the other views.
+    const ENRICH = `FROM shadow_captures s
+      LEFT JOIN LATERAL (
+        SELECT org_name, user_email, org_id
+        FROM interactions WHERE conversation_id = s.conversation_id ORDER BY id LIMIT 1
+      ) i ON TRUE`;
+
     const conditions = [];
     const params = [];
     let idx = 1;
 
-    if (org) { conditions.push(`org_id = $${idx++}`); params.push(org); }
-    if (user) { conditions.push(`user_email = $${idx++}`); params.push(user); }
-    if (status) { conditions.push(`status = $${idx++}`); params.push(status); }
-    if (node) { conditions.push(`node = $${idx++}`); params.push(node); }
+    if (org) { conditions.push(`COALESCE(s.org_id, i.org_id) = $${idx++}`); params.push(org); }
+    if (user) { conditions.push(`COALESCE(s.user_email, i.user_email) = $${idx++}`); params.push(user); }
+    if (status) { conditions.push(`s.status = $${idx++}`); params.push(status); }
+    if (node) { conditions.push(`s.node = $${idx++}`); params.push(node); }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const offset = (parseInt(page, 10) - 1) * parseInt(limit, 10);
 
     const [rows, countResult] = await Promise.all([
       query(
-        `SELECT id, conversation_id, LEFT(claude_response, 120) AS claude_preview,
-                node, status, org_name, user_email, local_model, engineer_verdict, created_at
-         FROM shadow_captures ${where}
-         ORDER BY id DESC
+        `SELECT s.id, s.conversation_id, LEFT(s.claude_response, 120) AS claude_preview,
+                s.node, s.status,
+                COALESCE(s.org_name, i.org_name) AS org_name,
+                COALESCE(s.user_email, i.user_email) AS user_email,
+                s.local_model, s.engineer_verdict, s.created_at
+         ${ENRICH} ${where}
+         ORDER BY s.id DESC
          LIMIT $${idx++} OFFSET $${idx++}`,
         [...params, parseInt(limit, 10), offset],
       ),
-      query(`SELECT COUNT(*)::int AS total FROM shadow_captures ${where}`, params),
+      query(`SELECT COUNT(*)::int AS total ${ENRICH} ${where}`, params),
     ]);
 
     res.json({
@@ -484,12 +531,59 @@ router.get('/shadow', async (req, res) => {
   }
 });
 
+// GET /api/shadow/patterns — failure-mode tally (tag -> count + verdict split).
+// MUST be registered before '/shadow/:id' so "patterns" isn't matched as an id.
+router.get('/shadow/patterns', async (req, res) => {
+  try {
+    const [tags, summary] = await Promise.all([
+      query(`
+        SELECT tag,
+               COUNT(*)::int AS n,
+               COUNT(*) FILTER (WHERE engineer_verdict = 'claude_better')::int AS claude_better,
+               COUNT(*) FILTER (WHERE engineer_verdict = 'local_better')::int AS local_better,
+               COUNT(*) FILTER (WHERE engineer_verdict = 'equivalent')::int AS equivalent,
+               COUNT(*) FILTER (WHERE engineer_verdict = 'reject')::int AS reject
+        FROM shadow_captures, unnest(failure_tags) AS tag
+        WHERE failure_tags IS NOT NULL AND array_length(failure_tags, 1) > 0
+        GROUP BY tag
+        ORDER BY n DESC, tag
+      `),
+      query(`
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE engineer_verdict IS NOT NULL)::int AS scored,
+          COUNT(*) FILTER (WHERE engineer_verdict = 'claude_better')::int AS claude_better,
+          COUNT(*) FILTER (WHERE engineer_verdict = 'local_better')::int AS local_better,
+          COUNT(*) FILTER (WHERE engineer_verdict = 'equivalent')::int AS equivalent,
+          COUNT(*) FILTER (WHERE engineer_verdict = 'reject')::int AS reject
+        FROM shadow_captures
+      `),
+    ]);
+    res.json({ tags: tags.rows, summary: summary.rows[0] });
+  } catch (err) {
+    console.error('[api/shadow/patterns]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/shadow/:id — full single shadow capture (JSONB columns auto-parsed by pg)
 router.get('/shadow/:id', async (req, res) => {
   try {
     const result = await query('SELECT * FROM shadow_captures WHERE id = $1', [req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    // Enrich org_name/user_email from the correlated interaction if the capture lacked them.
+    if ((!row.org_name || !row.user_email) && row.conversation_id) {
+      const corr = await query(
+        'SELECT org_name, user_email FROM interactions WHERE conversation_id = $1 ORDER BY id LIMIT 1',
+        [row.conversation_id],
+      );
+      if (corr.rows.length) {
+        row.org_name = row.org_name || corr.rows[0].org_name;
+        row.user_email = row.user_email || corr.rows[0].user_email;
+      }
+    }
+    res.json(row);
   } catch (err) {
     console.error('[api/shadow/:id]', err.message);
     res.status(500).json({ error: err.message });
@@ -499,15 +593,16 @@ router.get('/shadow/:id', async (req, res) => {
 // PUT /api/shadow/:id/verdict — record engineer verdict + notes, mark scored
 router.put('/shadow/:id/verdict', async (req, res) => {
   try {
-    const { engineer_verdict, review_notes } = req.body;
+    const { engineer_verdict, review_notes, failure_tags } = req.body;
     const result = await query(
       `UPDATE shadow_captures
        SET engineer_verdict = COALESCE($1, engineer_verdict),
            review_notes = COALESCE($2, review_notes),
+           failure_tags = COALESCE($3, failure_tags),
            status = 'scored'
-       WHERE id = $3
+       WHERE id = $4
        RETURNING id, engineer_verdict, status`,
-      [engineer_verdict ?? null, review_notes ?? null, req.params.id],
+      [engineer_verdict ?? null, review_notes ?? null, Array.isArray(failure_tags) ? failure_tags : null, req.params.id],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);

@@ -212,7 +212,10 @@ function loadConversation(cid) {
           const ctx = [t.rag_context, t.material_context, t.compliance_context].filter(Boolean).join('\n\n---\n\n');
           return `
         <div class="bg-gray-900 rounded-lg border border-gray-800 p-4">
-          <div class="text-xs text-gray-600 mb-2">Turn ${i + 1} &middot; #${t.id}${t.query_category ? ' &middot; ' + t.query_category : ''}${t.query_complexity ? ' &middot; cmplx ' + t.query_complexity : ''}</div>
+          <div class="text-xs text-gray-600 mb-2 flex items-center justify-between gap-2">
+            <span>Turn ${i + 1} &middot; #${t.id}${t.query_category ? ' &middot; ' + t.query_category : ''}${t.query_complexity ? ' &middot; cmplx ' + t.query_complexity : ''}</span>
+            ${i > 0 ? `<button onclick="splitConversation(${t.id})" class="text-xs text-amber-500 hover:text-amber-400 border border-amber-700/40 rounded px-2 py-0.5" title="Make this turn the start of a separate conversation">&#9986; split from here</button>` : ''}
+          </div>
           <div class="mb-3">
             <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">User</div>
             <div class="text-gray-200 whitespace-pre-wrap text-sm">${esc(t.user_query)}</div>
@@ -226,6 +229,22 @@ function loadConversation(cid) {
         })
         .join('');
     });
+}
+
+function splitConversation(fromId) {
+  const cid = document.getElementById('conversation-page').dataset.cid;
+  if (!confirm('Split here? This turn and every turn after it become a separate conversation.')) return;
+  fetch(`/api/conversations/${encodeURIComponent(cid)}/split`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fromId }),
+  })
+    .then((r) => r.json())
+    .then((d) => {
+      if (d.new_conversation_id) location.href = `/conversations/${encodeURIComponent(d.new_conversation_id)}`;
+      else alert('Split failed: ' + (d.error || 'unknown'));
+    })
+    .catch((e) => alert('Split failed: ' + e.message));
 }
 
 function submitConversationReview(approved) {
@@ -524,7 +543,7 @@ function shadowStatusBadge(s) {
 }
 
 /* ===== Shadow list page ===== */
-if (document.getElementById('shadow-page')) loadShadow(1);
+if (document.getElementById('shadow-page')) { loadShadow(1); loadPatterns(); }
 
 function loadShadow(page) {
   const params = new URLSearchParams();
@@ -563,6 +582,10 @@ function loadShadow(page) {
 /* ===== Shadow detail page ===== */
 if (document.getElementById('shadow-detail-page')) {
   loadShadowDetail(document.getElementById('shadow-detail-page').dataset.id);
+  const tagInput = document.getElementById('s-tag-input');
+  if (tagInput) tagInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); addShadowTag(tagInput.value); tagInput.value = ''; }
+  });
 }
 
 function prettyJson(v) {
@@ -581,6 +604,8 @@ function loadShadowDetail(id) {
       document.getElementById('s-claude').textContent = d.claude_response || '(no response)';
       document.getElementById('s-local').textContent = d.local_response || '';
       if (d.review_notes) document.getElementById('s-notes').value = d.review_notes;
+      shadowTags = new Set(d.failure_tags || []);
+      renderShadowTags();
 
       const localMeta = document.getElementById('s-local-meta');
       if (d.local_model || d.local_latency_ms != null || d.local_tokens_out != null) {
@@ -700,13 +725,67 @@ function submitVerdict(verdict) {
   fetch(`/api/shadow/${id}/verdict`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ engineer_verdict: verdict, review_notes: notes || null }),
+    body: JSON.stringify({ engineer_verdict: verdict, review_notes: notes || null, failure_tags: Array.from(shadowTags) }),
   })
     .then((r) => r.json())
     .then(() => {
       const toast = document.getElementById('s-toast');
       toast.className = 'mt-3 text-sm text-clams-500';
-      toast.textContent = `Saved verdict: ${verdict}.`;
+      toast.textContent = `Saved verdict: ${verdict}${shadowTags.size ? ` (${shadowTags.size} tag${shadowTags.size > 1 ? 's' : ''})` : ''}.`;
       loadShadowDetail(id);
+    });
+}
+
+/* ===== Shadow failure-pattern tally ===== */
+const SHADOW_TAG_VOCAB = [
+  'dropped_spec', 'fabricated_value', 'ungrounded', 'punted',
+  'wrong_value', 'format', 'incomplete', 'no_citation',
+];
+let shadowTags = new Set();
+
+function renderShadowTags() {
+  const el = document.getElementById('s-tag-chips');
+  if (!el) return;
+  const all = [...new Set([...SHADOW_TAG_VOCAB, ...shadowTags])];
+  el.innerHTML = all
+    .map((t) => {
+      const on = shadowTags.has(t);
+      return `<button type="button" onclick="toggleShadowTag('${esc(t)}')" class="px-2 py-0.5 rounded text-xs border ${on ? 'bg-amber-700/40 border-amber-600 text-amber-300' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-gray-200'}">${esc(t)}</button>`;
+    })
+    .join('');
+}
+
+function toggleShadowTag(t) {
+  if (shadowTags.has(t)) shadowTags.delete(t);
+  else shadowTags.add(t);
+  renderShadowTags();
+}
+
+function addShadowTag(raw) {
+  const t = (raw || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  if (!t) return;
+  shadowTags.add(t);
+  renderShadowTags();
+}
+
+function loadPatterns() {
+  const el = document.getElementById('shadow-patterns');
+  if (!el) return;
+  fetch('/api/shadow/patterns')
+    .then((r) => r.json())
+    .then((d) => {
+      const s = d.summary || {};
+      const tags = d.tags || [];
+      const maxN = Math.max(...tags.map((t) => t.n), 1);
+      const summaryLine = `<div class="text-xs text-gray-400 mb-3">Verdicts: <span class="text-amber-400">${s.claude_better || 0} Claude-better</span> · <span class="text-green-400">${s.local_better || 0} local-better</span> · <span class="text-blue-400">${s.equivalent || 0} equivalent</span> · <span class="text-red-400">${s.reject || 0} reject</span> &nbsp;(${s.scored || 0}/${s.total || 0} scored)</div>`;
+      const rows = tags.length
+        ? tags.map((t) => `
+        <div class="flex items-center gap-3">
+          <span class="w-44 text-xs text-gray-300 truncate" title="${esc(t.tag)}">${esc(t.tag)}</span>
+          <div class="flex-1 bg-gray-800 rounded-full h-4 overflow-hidden"><div class="bg-amber-700 h-full rounded-full" style="width:${(t.n / maxN) * 100}%"></div></div>
+          <span class="text-xs text-gray-400 w-8 text-right">${t.n}</span>
+        </div>`).join('')
+        : '<div class="text-xs text-gray-600">No failure tags yet — open a capture, evaluate it, and tag what went wrong.</div>';
+      el.innerHTML = `<div class="text-xs font-semibold text-clams-500 uppercase tracking-wide mb-2">Failure patterns</div>${summaryLine}<div class="space-y-1.5">${rows}</div>`;
     });
 }

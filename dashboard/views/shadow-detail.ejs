@@ -56,6 +56,11 @@
       <label class="block text-xs text-gray-500 mb-1">Review Notes</label>
       <textarea id="s-notes" rows="3" class="w-full bg-gray-800 border border-gray-700 text-gray-200 rounded px-3 py-2 text-sm" placeholder="How does the local answer compare? What's missing or wrong?"></textarea>
     </div>
+    <div class="mb-4">
+      <label class="block text-xs text-gray-500 mb-1">Failure tags — click to toggle, or type a custom one + Enter</label>
+      <div id="s-tag-chips" class="flex flex-wrap gap-2 mb-2"></div>
+      <input id="s-tag-input" type="text" placeholder="custom tag…" class="bg-gray-800 border border-gray-700 text-gray-200 rounded px-2 py-1.5 text-sm w-64">
+    </div>
     <div class="flex flex-wrap gap-3">
       <button onclick="submitVerdict('local_better')" class="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded text-sm font-medium">Local better</button>
       <button onclick="submitVerdict('equivalent')" class="bg-blue-700 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm font-medium">Equivalent</button>
