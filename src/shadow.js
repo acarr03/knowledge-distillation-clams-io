@@ -39,8 +39,7 @@ function systemToText(system) {
 
 /**
  * Pull the text from an Anthropic messages.create() response — the concatenation
- * of its `text` content blocks. Mirrors the extraction in src/client.js.
- * Returns null if there is no text content.
+ * of its `text` content blocks. Returns null if there is no text content.
  */
 function extractClaudeText(response) {
   if (!response || !Array.isArray(response.content)) return null;

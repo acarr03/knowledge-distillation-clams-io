@@ -1,2 +1,8 @@
 .claude/
 node_modules/
+
+# macOS
+.DS_Store
+
+# Data artifacts (benchmarks, raw logs, curated sets, training JSONL) — regenerable / may hold customer interactions
+/data/

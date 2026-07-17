@@ -9,7 +9,6 @@ const {
   anthropicToOllamaMessages,
   extractClaudeText,
 } = require('./src/shadow.js');
-const { ClamsAnthropicClient } = require('./src/client.js');
 const { config } = require('./src/config.js');
 
 module.exports = {
@@ -27,6 +26,5 @@ module.exports = {
   captureShadowAsync,
   anthropicToOllamaMessages,
   extractClaudeText,
-  ClamsAnthropicClient,
   config,
 };
