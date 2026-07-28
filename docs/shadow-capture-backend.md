@@ -6,7 +6,7 @@ byte-for-byte unchanged, and if capture fails (or the distillation DB is
 unreachable) the user sees nothing.
 
 The change lives in the **backend repo** (`clams-io-app`), which is separate from
-the `@clams-io/distillation` pipeline repo. The pipeline side (schema, the
+the `@acarr03/distillation` pipeline repo. The pipeline side (schema, the
 `captureShadowAsync` function, dashboard, offline runner) is already implemented
 and exported; this doc is the copy-paste for the backend.
 
@@ -22,30 +22,43 @@ and exported; this doc is the copy-paste for the backend.
    migrations it is applied out-of-band — `.npmignore` keeps `sql/` out of the
    npm/git package.)
 
-2. **Repin `@clams-io/distillation`** in the backend's `package.json` to the
-   commit that adds `src/shadow.js`, e.g.:
-
-   ```json
-   "@clams-io/distillation": "github:<org>/<distillation-repo>#<new-sha>"
-   ```
-
-   Then `npm install` in the backend so `captureShadowAsync` / `extractClaudeText`
-   are available. Confirm with:
+2. **Publish a new version, then bump it in the backend.** This pipeline ships as the
+   published package **`@acarr03/distillation`** on GitHub Packages — no longer a
+   `github:#sha` git dependency. After adding `src/shadow.js`:
 
    ```bash
-   node -e "console.log(Object.keys(require('@clams-io/distillation')))"
+   npm version patch    # bump version
+   # then publish: cut a GitHub Release, or Actions -> "Publish @acarr03/distillation" -> Run workflow
+   ```
+
+   Then in the backend's `package.json` bump the range (if you crossed a boundary) and
+   `npm install` so `captureShadowAsync` / `extractClaudeText` are available:
+
+   ```json
+   "@acarr03/distillation": "^0.1.0"
+   ```
+
+   Confirm with:
+
+   ```bash
+   node -e "console.log(Object.keys(require('@acarr03/distillation')))"
    # → should include captureShadowAsync, extractClaudeText, anthropicToOllamaMessages
    ```
+
+   (The backend pulls the private package via a `GITHUB_TOKEN` with `read:packages`,
+   already configured on Railway and in CI. Two `.npmrc` copies route the `@acarr03`
+   scope to GitHub Packages — `clams-io-app/.npmrc` for CI and `clams-io-app/backend/.npmrc`
+   for Railway.)
 
 ## The code change
 
 File: `clams-io-app/backend/src/services/materialAgent/nodes/basicResponse.js`
 
-Add the import near the top (alongside the existing `@clams-io/distillation` /
+Add the import near the top (alongside the existing `@acarr03/distillation` /
 `logInteractionAsync` import if present):
 
 ```js
-const { captureShadowAsync, extractClaudeText } = require('@clams-io/distillation');
+const { captureShadowAsync, extractClaudeText } = require('@acarr03/distillation');
 ```
 
 Immediately **after** the primary generation call
